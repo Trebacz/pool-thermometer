@@ -42,8 +42,16 @@ char ps_voltage[64]; //String to store voltage
 char ps_soc[64]; //String to store state of charge
 
 // MQTT server
-//byte server[] = {192,168,0,216};
-//MQTT client(server, 1883, callback);
+void callback(char* topic, byte* payload, unsigned int length);
+
+/**
+ * if want to use IP address,
+ * byte server[] = { 192,168,0,216 };
+ * MQTT client(server, 1883, callback);
+ **/
+
+byte server[] = {192,168,0,216};
+MQTT client(server, 1883, callback);
 
 void setup() {
 
@@ -59,15 +67,24 @@ void setup() {
     // This essentially starts the I2C bus
     batteryMonitor.begin(); // This sets up the fuel gauge
     batteryMonitor.quickStart();
+        // connect to the server
+
+    client.connect("sparkclient");
+
+    // publish/subscribe
+    if (client.isConnected()) {
+        client.publish("pool-thermometer/message","hello pool world");
+        client.publish("pool-thermometer/pool_temp", pool_temperature_str);
+    }
+
     delay(1000); // Wait for it to settle down - delay 1.0 second
 }
 
 void loop() {
-    //measure the temperature right away after a start and every POOL_READ_INTERVAL msec after that
-//    if( (millis() - pool_interval >= POOL_READ_INTERVAL) or (pool_interval==0) ) {
-        pool_temp();
-//        pool_interval = millis();
-//    }
+    if (client.isConnected())
+        client.loop();
+
+    pool_temp(); //Measure the pool temperature
 
     rssi = WiFi.RSSI();  // Read wifi signal strength
     Particle.publish("rssi", String(rssi), 60, PRIVATE); //Publish wifi signal to the cloud
