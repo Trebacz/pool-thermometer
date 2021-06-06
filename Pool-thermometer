@@ -18,8 +18,7 @@ int _version = 1.3;
 
 #include <math.h>
 #include "application.h"
-// Include the Powershield library
-#include "PowerShield/PowerShield.h"
+#include "PowerShield/PowerShield.h" // Include the Powershield library
 PowerShield batteryMonitor;
 
 // this is the thermistor used - https://www.adafruit.com/products/372
@@ -53,6 +52,25 @@ void callback(char* topic, byte* payload, unsigned int length);
 byte server[] = {192,168,0,216};
 MQTT client(server, 1883, callback);
 
+// recieve message
+void callback(char* topic, byte* payload, unsigned int length) {
+    char p[length + 1];
+    memcpy(p, payload, length);
+    p[length] = NULL;
+
+/**
+    if (!strcmp(p, "RED"))
+        RGB.color(255, 0, 0);
+    else if (!strcmp(p, "GREEN"))
+        RGB.color(0, 255, 0);
+    else if (!strcmp(p, "BLUE"))
+        RGB.color(0, 0, 255);
+    else
+        RGB.color(255, 255, 255);
+**/
+    delay(1000);
+}
+
 void setup() {
 
     Particle.publish("device starting", "Version: " + String(_version), 60, PRIVATE);
@@ -67,23 +85,12 @@ void setup() {
     // This essentially starts the I2C bus
     batteryMonitor.begin(); // This sets up the fuel gauge
     batteryMonitor.quickStart();
-        // connect to the server
-
-    client.connect("sparkclient");
-
-    // publish/subscribe
-    if (client.isConnected()) {
-        client.publish("pool-thermometer/message","hello pool world");
-        client.publish("pool-thermometer/pool_temp", pool_temperature_str);
-    }
+    client.connect("particle-client", "trebacz-pool-thermometer", "GJwGdjwwKTrvydiU4E4if"); // MQTT client connect may not be needed
 
     delay(1000); // Wait for it to settle down - delay 1.0 second
 }
 
 void loop() {
-    if (client.isConnected())
-        client.loop();
-
     pool_temp(); //Measure the pool temperature
 
     rssi = WiFi.RSSI();  // Read wifi signal strength
@@ -94,7 +101,19 @@ void loop() {
     
     float stateOfCharge = batteryMonitor.getSoC(); // Read the State of Charge of the LiPo
     Particle.publish("ps-soc", String(stateOfCharge), 60, PRIVATE); // Publish State of Charge to Cloud
-    delay(6000);  // wait for 6 seconds before sleeping
+
+    client.connect("particle-client", "trebacz-pool-thermometer", "GJwGdjwwKTrvydiU4E4if"); // MQTT client connect
+    // MQTT publish/subscribe
+    if (client.isConnected()) {
+        client.publish("pool-thermometer/message","hello pool world");
+        client.publish("pool-thermometer/pool_temp",pool_temperature_str); //Publish temperature signal to the MQTT
+        client.publish("pool-thermometer/rssi", String(rssi)); //Publish wifi signal to the MQTT
+        client.publish("pool-thermometer/ps-voltage", String(cellVoltage)); // Publish Cell Voltage to MQTT
+        client.publish("pool-thermometer/ps-soc", String(stateOfCharge)); // Publish State of Charge to MQTT
+        client.publish("pool-thermometer/message","goodbye pool world");
+    }
+
+//    delay(6000);  // wait for 6 seconds before sleeping
     delay(60000);  // wait for 60 seconds before sleeping
     System.sleep(SLEEP_MODE_DEEP, 900);
 }
@@ -151,11 +170,10 @@ int pool_temp()
     Particle.publish("pool_temp", ascii, 60, PRIVATE);
 //    Particle.publish("pool_temp", ascii, 60, PRIVATE, WITH_ACK);
 
-//    char tempInChar[32];
-//    sprintf(tempInChar,"%0d.%d", (int)steinhart, steinhart1);
+    char tempInChar[32];
+    sprintf(tempInChar,"%0d.%d", (int)steinhart, steinhart1);
 
-    //Write temperature to string, google sheets will get this variable
-//    sprintf(pool_temperature_str, "{\"t\":%s}", tempInChar);
+    sprintf(pool_temperature_str, "%s", tempInChar); //Write temperature to string
 
     return 0;
 }
