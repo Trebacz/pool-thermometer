@@ -13,8 +13,9 @@
 
 // IO mapping
 // A0 : pool_THERMISTOR
+STARTUP(WiFi.selectAntenna(ANT_EXTERNAL)); // selects the u.FL antenna
 
-int _version = 1.3;
+double _version = 1.6;
 
 #include <math.h>
 #include "application.h"
@@ -39,6 +40,27 @@ bool useFahrenheit = true; //by default, we'll display the temperature in degree
 int rssi = 0; //For wifi signal strength
 char ps_voltage[64]; //String to store voltage
 char ps_soc[64]; //String to store state of charge
+
+// This is the maximum amount of time to wait for the cloud to be connected in
+// milliseconds. This should be at least 5 minutes. If you set this limit shorter,
+// on Gen 2 devices the modem may not get power cycled which may help with reconnection.
+const std::chrono::milliseconds connectMaxTime = 6min;
+
+// This is the minimum amount of time to stay connected to the cloud. You can set this
+// to zero and the device will sleep as fast as possible, however you may not get 
+// firmware updates and device diagnostics won't go out all of the time. Setting this
+// to 10 seconds is typically a good value to use for getting updates.
+const std::chrono::milliseconds cloudMinTime = 10s;
+
+// How long to sleep
+const std::chrono::milliseconds sleepTime = 15min;
+
+// Maximum time to wait for publish to complete. It normally takes 20 seconds for Particle.publish
+// to succeed or time out, but if cellular needs to reconnect, it could take longer, typically
+// 80 seconds. This timeout should be longer than that and is just a safety net in case something
+// goes wrong.
+const std::chrono::milliseconds publishMaxTime = 3min;
+
 
 // MQTT server
 void callback(char* topic, byte* payload, unsigned int length);
@@ -73,19 +95,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void setup() {
 
-    Particle.publish("device starting", "Version: " + String(_version), 60, PRIVATE);
+    Particle.publish("device starting", "Version: " + String::format("%.2lf", _version), 60, PRIVATE); // Publish Code version to cloud formated to 2 decimals
 
     pool_interval = 0;
     pinMode(pool_THERMISTOR, INPUT);
     Particle.variable("pool_temp", pool_temperature_str);
-    Particle.variable("RSSI", &rssi);
+    Particle.variable("RSSI", rssi);
     Particle.variable("PS-VOLTAGE", ps_voltage);
     Particle.variable("PS-SOC", ps_soc);
     //Include the setup for power shield
     // This essentially starts the I2C bus
     batteryMonitor.begin(); // This sets up the fuel gauge
     batteryMonitor.quickStart();
-    client.connect("particle-client", "trebacz-pool-thermometer", "***REMOVED***"); // MQTT client connect may not be needed
+//    client.connect("particle-client", "trebacz-pool-thermometer", "***REMOVED***"); // MQTT client connect may not be needed
 
     delay(1000); // Wait for it to settle down - delay 1.0 second
 }
@@ -97,20 +119,20 @@ void loop() {
     Particle.publish("rssi", String(rssi), 60, PRIVATE); //Publish wifi signal to the cloud
     
     float cellVoltage = batteryMonitor.getVCell(); // Read the volatge of the LiPo Battery
-    Particle.publish("ps-voltage", String(cellVoltage), 60, PRIVATE); // Publish Cell Voltage to cloud
+    Particle.publish("ps-voltage", String::format("%.2lf", cellVoltage), 60, PRIVATE); // Publish Cell Voltage to cloud formated to 2 decimals
     
     float stateOfCharge = batteryMonitor.getSoC(); // Read the State of Charge of the LiPo
-    Particle.publish("ps-soc", String(stateOfCharge), 60, PRIVATE); // Publish State of Charge to Cloud
+    Particle.publish("ps-soc", String::format("%.2lf", stateOfCharge), 60, PRIVATE); // Publish State of Charge to Cloud formated to 2 decimals
 
     client.connect("particle-client", "trebacz-pool-thermometer", "***REMOVED***"); // MQTT client connect
     // MQTT publish/subscribe
     if (client.isConnected()) {
-        client.publish("pool-thermometer/message","hello pool world");
+//        client.publish("pool-thermometer/message","hello pool world");
         client.publish("pool-thermometer/pool_temp",pool_temperature_str); //Publish temperature signal to the MQTT
         client.publish("pool-thermometer/rssi", String(rssi)); //Publish wifi signal to the MQTT
-        client.publish("pool-thermometer/ps-voltage", String(cellVoltage)); // Publish Cell Voltage to MQTT
-        client.publish("pool-thermometer/ps-soc", String(stateOfCharge)); // Publish State of Charge to MQTT
-        client.publish("pool-thermometer/message","goodbye pool world");
+        client.publish("pool-thermometer/ps-voltage", String::format("%.2lf", cellVoltage)); // Publish Cell Voltage to MQTT formated to 2 decimals
+        client.publish("pool-thermometer/ps-soc", String::format("%.2lf", stateOfCharge)); // Publish State of Charge to MQTT formated to 2 decimals
+//        client.publish("pool-thermometer/message","goodbye pool world");
     }
 
 //    delay(6000);  // wait for 6 seconds before sleeping
