@@ -101,6 +101,7 @@ void setup() {
     client.connect("particle-client" + String(Time.now()), mqtt_user, mqtt_password); // MQTT client connect to the server(unique id by Time.now())
     if (client.isConnected()) {
     client.publish("pool-thermometer/message","Pool MQTT Connected " + String(Time.now()));
+    delay(1000);  // wait for 1 second to avoid rate limits
     }
 }
 
@@ -109,12 +110,15 @@ void loop() {
 
     rssi = WiFi.RSSI();  // Read wifi signal strength
     Particle.publish("rssi", String(rssi), 60, PRIVATE); //Publish wifi signal to the cloud
+    delay(1000);  // wait for 1 second to avoid rate limits
     
     float cellVoltage = batteryMonitor.getVCell(); // Read the volatge of the LiPo Battery
     Particle.publish("ps-voltage", String::format("%.2lf", cellVoltage), 60, PRIVATE); // Publish Cell Voltage to cloud formated to 2 decimals
     
     float stateOfCharge = batteryMonitor.getSoC(); // Read the State of Charge of the LiPo
     Particle.publish("ps-soc", String::format("%.2lf", stateOfCharge), 60, PRIVATE); // Publish State of Charge to Cloud formated to 2 decimals
+    delay(1000);  // wait for 1 second to avoid rate limits
+
 
     // MQTT publish/subscribe
     if (client.isConnected()) {
